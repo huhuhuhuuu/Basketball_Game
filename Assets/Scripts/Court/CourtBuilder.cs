@@ -111,7 +111,7 @@ namespace BasketballCourt
             for (int i = 0; i < transform.childCount; i++)
             {
                 var child = transform.GetChild(i);
-                if (child.name == GeneratedRootName) stale.Add(child.gameObject);
+                if (child.gameObject.name == GeneratedRootName) stale.Add(child.gameObject);
             }
             foreach (var go in stale)
             {

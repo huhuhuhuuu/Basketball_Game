@@ -159,16 +159,18 @@ namespace BasketballCourt.Modules
             Mesh liner = MeshFactory.Disc(0.29f, 32, "BinLiner");
             MeshFactory.Displace(liner, v => new Vector3(0f, (ProceduralTextures.Fbm(v.x * 2f + 0.5f, v.z * 2f + 0.5f, 6, 3, 77) - 0.5f) * 0.08f, 0f));
             Material plastic = ctx.Mats.Flat("BinLinerPlastic", new Color(0.05f, 0.05f, 0.06f), 0.55f, 0f);
-            ctx.MeshObject("Liner", bin, liner, plastic, new Vector3(0f, 0.6f, 0f), Vector3.zero, Vector3.one, false);
+            ctx.MeshObject("Liner", bin, liner, plastic, new Vector3(0f, 0.72f, 0f), Vector3.zero, Vector3.one, false);
             ctx.Box("LinerFlap", bin, new Vector3(0.30f, 0.80f, 0.05f), new Vector3(0.06f, 0.14f, 0.16f), plastic, false, new Vector3(6f, 15f, 12f));
 
             // Overflow: crumpled paper, a pizza box corner and a bottle sticking out.
             Material paper = ctx.Mats.Flat("Paper", new Color(0.9f, 0.9f, 0.87f), 0.15f, 0f);
-            CrumpledPaper(ctx, bin, "PaperBall_A", new Vector3(0.08f, 0.66f, -0.1f), 0.06f, paper, 11);
-            CrumpledPaper(ctx, bin, "PaperBall_B", new Vector3(-0.12f, 0.64f, 0.08f), 0.05f, paper, 12);
-            CrumpledPaper(ctx, bin, "PaperBall_C", new Vector3(0.02f, 0.7f, 0.14f), 0.045f, paper, 13);
-            ctx.Box("PizzaBoxCorner", bin, new Vector3(-0.05f, 0.82f, -0.02f), new Vector3(0.33f, 0.03f, 0.33f), Cardboard(ctx), false, new Vector3(35f, 25f, 8f));
-            Bottle(ctx, bin, "BinBottle", new Vector3(0.14f, 0.78f, 0.1f), new Vector3(-55f, 20f, 30f), 0.9f);
+            // The pile rises above the rim (0.87) so the bin clearly overflows.
+            CrumpledPaper(ctx, bin, "PaperBall_A", new Vector3(0.10f, 0.86f, -0.12f), 0.06f, paper, 11);
+            CrumpledPaper(ctx, bin, "PaperBall_B", new Vector3(-0.14f, 0.85f, 0.08f), 0.05f, paper, 12);
+            CrumpledPaper(ctx, bin, "PaperBall_C", new Vector3(0.02f, 0.93f, 0.15f), 0.045f, paper, 13);
+            CrumpledPaper(ctx, bin, "PaperBall_D", new Vector3(0.34f, 0.03f, -0.22f), 0.04f, paper, 14);   // one missed the bin
+            ctx.Box("PizzaBoxCorner", bin, new Vector3(-0.06f, 0.9f, -0.02f), new Vector3(0.33f, 0.03f, 0.33f), Cardboard(ctx), false, new Vector3(38f, 25f, 8f));
+            Bottle(ctx, bin, "BinBottle", new Vector3(0.14f, 0.84f, 0.1f), new Vector3(-55f, 20f, 30f), 0.9f);
 
             // Lid resting askew on the rim / the rubbish.
             var lid = new List<Vector2>
@@ -177,8 +179,11 @@ namespace BasketballCourt.Modules
                 new Vector2(0.30f, 0.045f), new Vector2(0.16f, 0.07f), new Vector2(0f, 0.08f),
             };
             Mesh lidMesh = MeshFactory.Lathe(lid, 32, "TrashCanLid");
-            ctx.MeshObject("Lid", bin, lidMesh, ctx.Mats.PaintedGreenSteel, new Vector3(0.09f, 0.9f, -0.06f), new Vector3(18f, 40f, -4f), Vector3.one, false);
-            ctx.Sphere("LidHandle", bin, new Vector3(0.09f, 0.9f, -0.06f) + Quaternion.Euler(18f, 40f, -4f) * new Vector3(0f, 0.095f, 0f), 0.05f, ctx.Mats.PaintedGreenSteel, false);
+            // One edge rests on the rim, the other on the rubbish, so part of the opening shows.
+            Vector3 lidPos = new Vector3(0.21f, 0.97f, -0.15f);
+            Vector3 lidRot = new Vector3(28f, 40f, -8f);
+            ctx.MeshObject("Lid", bin, lidMesh, ctx.Mats.PaintedGreenSteel, lidPos, lidRot, Vector3.one, false);
+            ctx.Sphere("LidHandle", bin, lidPos + Quaternion.Euler(lidRot) * new Vector3(0f, 0.095f, 0f), 0.05f, ctx.Mats.PaintedGreenSteel, false);
         }
 
         static void CrumpledPaper(BuildContext ctx, Transform parent, string name, Vector3 pos, float radius, Material mat, int seed)

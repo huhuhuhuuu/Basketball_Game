@@ -47,8 +47,9 @@ namespace BasketballCourt.Modules
         const float CentreOverhangX = CourtSpec.HalfWidth + CourtSpec.CenterLineOverhang; // 7.65
         const float CentreCircleR   = CourtSpec.CenterCircleRadius - HalfW;          // 1.775
         const float FtZ        = EndInnerZ - CourtSpec.FreeThrowLineDist + HalfW;    // 8.175
-        const float KeyX       = CourtSpec.KeyWidth * 0.5f - HalfW;                  // 2.425
-        const float KeyOuterX  = CourtSpec.KeyWidth * 0.5f;                          // 2.45
+        const float FtHalfLen  = CourtSpec.FreeThrowLineLength * 0.5f;               // 1.8  (FT line runs x −1.8 → 1.8)
+        const float KeyX       = CourtSpec.KeyWidth * 0.5f - HalfW;                  // 2.425 (centre-line of the key sides)
+        const float KeyOuterX  = CourtSpec.KeyWidth * 0.5f;                          // 2.45  (outer edge of the key)
         const float FtCircleR  = CourtSpec.FreeThrowCircleRadius - HalfW;            // 1.775
         const float ThreeR     = CourtSpec.ThreePointRadius - HalfW;                 // 6.725
         const float ThreeLegX  = CourtSpec.HalfWidth - CourtSpec.ThreePointSideInset - HalfW; // 6.575
@@ -96,6 +97,7 @@ namespace BasketballCourt.Modules
         {
             Mesh mesh = b.ToMesh(name);
             // The long overload lets us switch shadow casting OFF (flat paint casts no shadow).
+            // meshCollider = false: nothing ever collides with paint.
             ctx.MeshObject(name, parent, mesh, mat, Vector3.zero, Vector3.zero, Vector3.one,
                 false, false, true);
         }
@@ -111,10 +113,10 @@ namespace BasketballCourt.Modules
             MeshFactory.AppendSegment(b, P(x0, z0), P(x1, z1), width, extendEnds, UvPerMeter);
         }
 
-        /// <summary>Painted ribbon of normal line width along a polyline.</summary>
-        static void Ribbon(MeshFactory.Builder b, List<Vector3> pts, bool closed)
+        /// <summary>Painted ribbon of normal line width along an open polyline.</summary>
+        static void Ribbon(MeshFactory.Builder b, List<Vector3> pts)
         {
-            MeshFactory.AppendRibbon(b, pts, LineW, UvPerMeter, 0f, closed);
+            MeshFactory.AppendRibbon(b, pts, LineW, UvPerMeter, 0f, false);
         }
 
         /// <summary>Points on an arc on the line layer (degrees: 0° = +X, 90° = +Z).</summary>
@@ -130,6 +132,36 @@ namespace BasketballCourt.Modules
             for (int i = 0; i < pts.Count; i++)
                 result.Add(new Vector3(pts[i].x, pts[i].y, pts[i].z * s));
             return result;
+        }
+
+        /// <summary>
+        /// Closed painted ring (used for the centre circle). Built directly rather than with
+        /// AppendRibbon(closed: true): a closed ribbon's last quad runs the texture u from
+        /// "full length" back to 0, which squeezes the whole wear pattern into one short chord
+        /// and shows up as a single oddly clean segment. Here u simply keeps counting metres
+        /// all the way round, so the seam is invisible in the noise.
+        /// Vertex order per step is (inner, outer), which gives an upward-facing front face.
+        /// </summary>
+        static void AppendRing(MeshFactory.Builder b, float cx, float cz, float radius, float width, int segments)
+        {
+            float rIn  = radius - width * 0.5f;
+            float rOut = radius + width * 0.5f;
+            float circumference = 2f * Mathf.PI * radius;
+            int first = b.V.Count;
+            for (int i = 0; i <= segments; i++)      // last vertex pair sits on the first, with u = full length
+            {
+                float t = (float)i / segments;
+                float a = t * Mathf.PI * 2f;
+                float cs = Mathf.Cos(a), sn = Mathf.Sin(a);
+                float u = t * circumference * UvPerMeter;
+                b.Add(new Vector3(cx + cs * rIn,  Y, cz + sn * rIn),  Vector3.up, new Vector2(u, 0f));
+                b.Add(new Vector3(cx + cs * rOut, Y, cz + sn * rOut), Vector3.up, new Vector2(u, 1f));
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                int a = first + i * 2, c = first + (i + 1) * 2;
+                b.Quad(a, c, c + 1, a + 1);
+            }
         }
 
         // ── Middle of the court ──────────────────────────────────────────────
@@ -155,12 +187,10 @@ namespace BasketballCourt.Modules
             Seg(b, -CentreOverhangX, 0f, -CourtSpec.HalfWidth, 0f, LineW, 0f);       // west overhang
         }
 
-        /// <summary>Centre circle, outer radius 1.8, as one closed ribbon of 64 segments.</summary>
+        /// <summary>Centre circle, outer radius 1.8, as one closed ring of 64 segments.</summary>
         static void AddCentreCircle(MeshFactory.Builder b)
         {
-            var pts = Arc(0f, 0f, CentreCircleR, 0f, 360f, 64);
-            pts.RemoveAt(pts.Count - 1);   // ArcPoints repeats the first point at 360°; a closed ribbon must not
-            Ribbon(b, pts, true);
+            AppendRing(b, 0f, 0f, CentreCircleR, LineW, 64);
         }
 
         // ── One end of the court (s = +1 north / −1 south) ───────────────────
@@ -176,15 +206,20 @@ namespace BasketballCourt.Modules
         }
 
         /// <summary>
-        /// Free-throw line (its far edge 5.8 m from the endline's inner edge) and the two long sides of
-        /// the key. FIBA closes the key with the "extended free-throw line", so the FT line is drawn
-        /// across the whole 4.9 m key width; the sides run from the endline to the FT line's near edge.
+        /// Free-throw line (3.6 m long, its far edge 5.8 m from the endline's inner edge) and the key.
+        /// The key is 4.9 m wide, so its closing edge continues the FT line out to the key sides
+        /// (FIBA calls this the "extended free-throw line"); the two long sides run from the endline
+        /// to that edge. Pieces only touch, never overlap, so the paint never flickers.
         /// </summary>
         static void AddFreeThrowLineAndKey(MeshFactory.Builder b, float s)
         {
             float ftZ = s * FtZ;
-            // Free-throw line: extend both ends by half a width so the key corners are solid squares.
-            Seg(b, -KeyX, ftZ, KeyX, ftZ, LineW, HalfW);
+            // The free-throw line proper: x −1.8 → 1.8.
+            Seg(b, -FtHalfLen, ftZ, FtHalfLen, ftZ, LineW, 0f);
+            // Key closing edge: from each end of the FT line out to the key's outer edge (|x| = 2.45),
+            // which makes the two key corners solid squares.
+            Seg(b,  FtHalfLen, ftZ,  KeyOuterX, ftZ, LineW, 0f);
+            Seg(b, -KeyOuterX, ftZ, -FtHalfLen, ftZ, LineW, 0f);
             // Key sides: from the endline's inner edge to the FT line's edge that faces the endline.
             float keyTopZ = s * (FtZ + HalfW);
             Seg(b,  KeyX, s * EndInnerZ,  KeyX, keyTopZ, LineW, 0f);
@@ -200,7 +235,7 @@ namespace BasketballCourt.Modules
             // Start a hair (≈0.8°) past 180° so the arc begins at the FT line's edge instead of its middle.
             float tuck = Mathf.Asin(HalfW / FtCircleR) * Mathf.Rad2Deg;
             var arc = Arc(0f, FtZ, FtCircleR, 180f + tuck, 360f - tuck, 32);   // through 270° = toward −Z (court centre)
-            Ribbon(b, MirrorZ(arc, s), false);
+            Ribbon(b, MirrorZ(arc, s));
         }
 
         /// <summary>
@@ -219,7 +254,7 @@ namespace BasketballCourt.Modules
             pts.Add(P(ThreeLegX, EndInnerZ));                                    // east leg starts at the endline
             pts.AddRange(Arc(0f, basketZ, ThreeR, startDeg, endDeg, 64));       // first arc point == east leg end
             pts.Add(P(-ThreeLegX, EndInnerZ));                                   // west leg back to the endline
-            Ribbon(b, MirrorZ(pts, s), false);
+            Ribbon(b, MirrorZ(pts, s));
         }
 
         /// <summary>
@@ -234,7 +269,7 @@ namespace BasketballCourt.Modules
             pts.Add(P(NoChargeR, boardZ));                                       // east leg at the backboard
             pts.AddRange(Arc(0f, basketZ, NoChargeR, 0f, -180f, 24));           // 0° → −90° (toward court) → −180°
             pts.Add(P(-NoChargeR, boardZ));                                      // west leg at the backboard
-            Ribbon(b, MirrorZ(pts, s), false);
+            Ribbon(b, MirrorZ(pts, s));
         }
 
         /// <summary>

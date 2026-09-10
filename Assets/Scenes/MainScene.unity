@@ -331,6 +331,7 @@ MonoBehaviour:
   maxPitch: 85
   minHeight: 0.3
   maxHeight: 60
+  showHelp: 1
 --- !u!1 &1200000001
 GameObject:
   m_ObjectHideFlags: 0

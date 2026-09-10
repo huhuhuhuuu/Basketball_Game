@@ -30,6 +30,10 @@ namespace BasketballCourt
         public float minHeight = 0.3f;
         public float maxHeight = 60f;
 
+        [Header("Help overlay")]
+        [Tooltip("Show the controls in the corner of the screen (H toggles it).")]
+        public bool showHelp = true;
+
         float _yaw, _pitch;
         Vector3 _startPos;
         Quaternion _startRot;
@@ -56,6 +60,7 @@ namespace BasketballCourt
                 transform.rotation = _startRot;
                 SyncAnglesFromTransform();
             }
+            if (Input.GetKeyDown(KeyCode.H)) showHelp = !showHelp;
 
             HandleLook();
             HandleMove();
@@ -133,6 +138,20 @@ namespace BasketballCourt
             Vector3 p = transform.position + delta;
             p.y = Mathf.Clamp(p.y, minHeight, maxHeight);
             transform.position = p;
+        }
+
+        const string HelpText =
+            "WASD / arrows  move      Hold RIGHT mouse  look around\n" +
+            "E / Space  up    Q / Ctrl  down    Shift  fast    Wheel  speed\n" +
+            "R  reset view        H  hide this help";
+
+        void OnGUI()
+        {
+            if (!showHelp) return;
+            const float w = 470f, h = 62f;
+            Rect r = new Rect(12f, Screen.height - h - 12f, w, h);
+            GUI.Box(r, "");
+            GUI.Label(new Rect(r.x + 10f, r.y + 6f, w - 20f, h - 12f), HelpText);
         }
     }
 }

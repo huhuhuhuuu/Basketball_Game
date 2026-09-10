@@ -67,6 +67,10 @@ the Scene view. **Clear** removes them again. Changing the `seed` re-rolls the l
 
 ### Notes
 
+- The first frame of Play mode takes a few seconds: every texture and mesh is generated on the spot
+  (the Console prints how long it took and how many objects were made).
+- `Assets/Generated/` (written by **Build Court**) is ignored by git; it is rebuilt on demand, so keep
+  the scene un-baked (or run Build Court again after cloning) rather than committing baked assets.
 - The earlier shooting / scoring / mobile-controls prototype was removed on purpose; ball movement and
   gameplay will be rebuilt later on top of this scene (the old scripts are still in git history).
 - `Standard` is listed under *Always Included Shaders* in Graphics settings because all materials are

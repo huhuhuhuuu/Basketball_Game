@@ -49,7 +49,8 @@ namespace BasketballCourt.Modules
             Texture2D variation = ctx.Tex.Get("grass_variation", () => ProceduralTextures.Create(512, 512, (u, v) =>
             {
                 float big = ProceduralTextures.Fbm(u, v, 8, 4, seed + 3);
-                float d = 0.5f + (big - 0.5f) * 0.45f;
+                // Kept subtle: the Standard shader's detail multiply is ×2 in sRGB (≈×4.6 in linear).
+                float d = 0.5f + (big - 0.5f) * 0.22f;
                 return new Color(d, d, d * 0.96f, 1f);
             }, false, TextureWrapMode.Repeat, FilterMode.Trilinear, 4, "grass_variation"));
 

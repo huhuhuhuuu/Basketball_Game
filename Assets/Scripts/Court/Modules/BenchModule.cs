@@ -50,8 +50,10 @@ namespace BasketballCourt.Modules
 
         static void BuildBench(BuildContext ctx, Transform parent, string name, Vector3 pos, float yaw, int index)
         {
-            // Bench 3 (west) has sunk on one end: lean the whole thing 1.2° about its length axis' normal.
+            // Bench 3 (west) has sunk on one end: roll it 1.2° and drop it so the low end sinks into the slab
+            // while the high end still stands on it.
             Vector3 euler = new Vector3(0f, yaw + ctx.Range(-1.5f, 1.5f), index == 3 ? 1.2f : 0f);
+            if (index == 3) pos.y -= (Length * 0.5f) * Mathf.Sin(1.2f * Mathf.Deg2Rad);
             Transform b = ctx.Group(name, parent, pos, euler).transform;
 
             Material iron = ctx.Mats.RustyIron;
@@ -150,7 +152,8 @@ namespace BasketballCourt.Modules
             for (int s = -1; s <= 1; s += 2)
             {
                 Vector3 p = faceCenter + new Vector3(s * FrameX, 0f, 0f);
-                ctx.Tube("Bolt", b, p, p + outward * 0.008f, 0.007f, bolt, false, false);
+                // Starts 1 cm inside the wood so a slightly twisted slat never leaves the head floating.
+                ctx.Tube("Bolt", b, p - outward * 0.01f, p + outward * 0.008f, 0.007f, bolt, false, false);
             }
         }
 
@@ -192,7 +195,7 @@ namespace BasketballCourt.Modules
                 new Vector2(0f, 0.002f), new Vector2(0.026f, 0.002f), new Vector2(0.03f, 0.015f), new Vector2(0.03f, 0.075f), new Vector2(0f, 0.075f),
             };
             Material waterMat = ctx.Mats.Get("BottleWater", () =>
-                MatKit.Make("BottleWater", new Color(0.6f, 0.8f, 0.95f, 0.5f), 0.95f, 0f).Fade());
+                MatKit.Make("BottleWater", new Color(0.6f, 0.8f, 0.95f, 0.5f), 0.95f, 0f).Fade().QueueOffset(-1));
             ctx.MeshObject("Water", bottle, MeshFactory.Lathe(water, 20, "BottleWater"), waterMat, Vector3.zero, Vector3.zero, Vector3.one, false, false, true);
 
             // Blue cap and a paper label band.

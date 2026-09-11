@@ -72,12 +72,20 @@ namespace BasketballCourt.EditorTools
             var root = builder.Build(sink);
             if (root != null)
             {
-                // Flags are per-object, so mark the whole generated hierarchy static.
+                // Flags are per-object, so mark the whole generated hierarchy static – except the props,
+                // which may get physics or be moved later.
                 var flags = StaticEditorFlags.BatchingStatic | StaticEditorFlags.OccludeeStatic;
                 foreach (var t in root.GetComponentsInChildren<Transform>(true))
-                    GameObjectUtility.SetStaticEditorFlags(t.gameObject, flags);
+                    GameObjectUtility.SetStaticEditorFlags(t.gameObject, IsUnderGroup(t, root.transform, "Props") ? 0 : flags);
             }
             MarkDirty(builder);
+        }
+
+        static bool IsUnderGroup(Transform t, Transform root, string groupName)
+        {
+            for (Transform p = t; p != null && p != root; p = p.parent)
+                if (p.parent == root && p.gameObject.name == groupName) return true;
+            return false;
         }
 
         static void ClearFromScene(CourtBuilder builder)

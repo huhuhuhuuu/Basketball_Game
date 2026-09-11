@@ -17,6 +17,8 @@ namespace BasketballCourt
             get
             {
                 if (_standard == null) _standard = Shader.Find("Standard");
+                if (_standard == null)
+                    Debug.LogError("[MatKit] The Standard shader is missing. Keep it listed under Project Settings > Graphics > Always Included Shaders (all court materials are created at runtime).");
                 return _standard;
             }
         }

@@ -43,6 +43,7 @@ namespace BasketballCourt.Modules
         const float DiamondPitch   = 0.07f;   // chain-link diamond width (5 cm mesh measured between wires)
         const int   TileDiamonds   = 2;       // diamonds across one texture repeat
         const int   TintVariants   = 4;       // how many differently weathered panel materials
+        const float MeshCutoff     = 0.4f;    // alpha cutoff of the chain-link material
 
         // One repeat of the chain-link texture covers TileDiamonds diamonds.
         static float MeshUvPerMeter { get { return 1f / (DiamondPitch * TileDiamonds); } }
@@ -184,7 +185,7 @@ namespace BasketballCourt.Modules
             float x = -CourtSpec.FenceHalfX;
             float gateN = CourtSpec.GateZ + CourtSpec.GateWidth * 0.5f;
             float doorW = CourtSpec.GateWidth - GatePostR * 2f - 0.10f;   // 1.02: fits between the posts with play
-            float y0 = MeshBottom, y1 = MeshBottom + DoorHeight;    // 0.10 → 2.20
+            float y0 = MeshBottom, y1 = MeshBottom + DoorHeight - 0.05f;   // 0.10 → 2.15 (5 cm under the head rail)
 
             // Hinge axis 6 cm south of the north gate post's centre (2 cm outside its surface).
             GameObject door = ctx.Group("Door", g, new Vector3(x, 0f, gateN - GatePostR - 0.02f), new Vector3(0f, DoorOpenDeg, 0f));
@@ -214,17 +215,18 @@ namespace BasketballCourt.Modules
             ctx.Box("Latch", d, new Vector3(0f, 1.05f, zB - 0.01f), new Vector3(0.05f, 0.14f, 0.06f), dark, false);
 
             // Fence mesh above the door so the fence line stays continuous up to the rail.
-            float aboveH = MeshBottom + MeshHeight - y1;   // 3.95 − 2.20 = 1.75
+            float railY = MeshBottom + DoorHeight + 0.01f;   // 2.21: head rail over the opening
+            float aboveH = MeshBottom + MeshHeight - railY;  // 3.95 − 2.21 = 1.74
             Mesh above = MeshFactory.Panel(CourtSpec.GateWidth, aboveH, 2, 3, MeshUvPerMeter, true, "GateTopPanel");
             GameObject top = ctx.MeshObject("MeshAboveGate", g, above, meshMat,
-                new Vector3(x, y1 + aboveH * 0.5f, CourtSpec.GateZ), new Vector3(0f, -90f, 0f), Vector3.one, false);
+                new Vector3(x, railY + aboveH * 0.5f, CourtSpec.GateZ), new Vector3(0f, -90f, 0f), Vector3.one, false);
             var topCol = top.AddComponent<BoxCollider>();
             topCol.size = new Vector3(CourtSpec.GateWidth, aboveH, MeshThickness);
             // The top rail continues over the opening, and a horizontal bar under the mesh spans the two gate posts.
             ctx.Tube("TopRailOverGate", g, new Vector3(x, TopRailY, CourtSpec.GateZ - CourtSpec.GateWidth * 0.5f),
                 new Vector3(x, TopRailY, CourtSpec.GateZ + CourtSpec.GateWidth * 0.5f), TopRailR, steel, false);
-            ctx.Tube("GateHeadRail", g, new Vector3(x, y1 + 0.01f, CourtSpec.GateZ - CourtSpec.GateWidth * 0.5f),
-                new Vector3(x, y1 + 0.01f, CourtSpec.GateZ + CourtSpec.GateWidth * 0.5f), 0.018f, steel, false);
+            ctx.Tube("GateHeadRail", g, new Vector3(x, railY, CourtSpec.GateZ - CourtSpec.GateWidth * 0.5f),
+                new Vector3(x, railY, CourtSpec.GateZ + CourtSpec.GateWidth * 0.5f), 0.018f, steel, false);
         }
 
         // ── Sign ─────────────────────────────────────────────────────────────
@@ -259,7 +261,10 @@ namespace BasketballCourt.Modules
         /// <summary>A few weathered variants of the chain-link material (same texture, different tints).</summary>
         static Material[] MeshMaterials(BuildContext ctx)
         {
-            Texture2D tex = ctx.Tex.Get("chainlink_albedo", () => ChainLinkTexture(ctx.RangeInt(1, 100000)));
+            // Thin wires would vanish beyond ~10 m once mipmaps average their alpha away, so the mip levels
+            // are rescaled to keep the same wire coverage as the full-resolution texture.
+            Texture2D tex = ctx.Tex.Get("chainlink_albedo", () =>
+                ProceduralTextures.PreserveAlphaCoverage(ChainLinkTexture(ctx.RangeInt(1, 100000)), MeshCutoff));
             var mats = new Material[TintVariants];
             for (int i = 0; i < TintVariants; i++)
             {
@@ -273,7 +278,7 @@ namespace BasketballCourt.Modules
                                : new Color(0.8f, 0.68f, 0.55f);
                     return MatKit.Make("ChainLink_" + idx, tint, 0.5f, 0.6f)
                         .WithAlbedo(tex, 1f, 1f)
-                        .Cutout(0.4f);
+                        .Cutout(MeshCutoff);
                 });
             }
             return mats;
@@ -287,7 +292,7 @@ namespace BasketballCourt.Modules
         static Texture2D ChainLinkTexture(int seed)
         {
             const int size = 256;
-            const float wireHalf = 0.012f;   // in tile units (~3 mm wire on a 14 cm tile)
+            const float wireHalf = 0.014f;   // in tile units (~4 mm wire on a 14 cm tile)
             const float edge = 1.2f / size;
             return ProceduralTextures.Create(size, size, (u, v) =>
             {

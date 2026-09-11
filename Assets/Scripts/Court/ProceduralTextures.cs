@@ -195,6 +195,40 @@ namespace BasketballCourt
             return NormalFromField(HeightField(size, height), size, strength, name);
         }
 
+        /// <summary>
+        /// Fixes the classic cutout problem: auto-generated mipmaps average thin alpha shapes (wires, leaf
+        /// edges) below the cutoff, so they vanish at a distance. This rescales each mip level's alpha so the
+        /// fraction of texels that pass `cutoff` stays the same as in mip 0.
+        /// </summary>
+        public static Texture2D PreserveAlphaCoverage(Texture2D tex, float cutoff)
+        {
+            if (tex == null || tex.mipmapCount <= 1) return tex;
+            float target = Coverage(tex.GetPixels(0), cutoff, 1f);
+            for (int mip = 1; mip < tex.mipmapCount; mip++)
+            {
+                Color[] px = tex.GetPixels(mip);
+                float lo = 1f, hi = 16f;
+                for (int it = 0; it < 14; it++)
+                {
+                    float mid = (lo + hi) * 0.5f;
+                    if (Coverage(px, cutoff, mid) < target) lo = mid; else hi = mid;
+                }
+                float scale = (lo + hi) * 0.5f;
+                for (int i = 0; i < px.Length; i++) px[i].a = Mathf.Clamp01(px[i].a * scale);
+                tex.SetPixels(px, mip);
+            }
+            tex.Apply(false, false);
+            return tex;
+        }
+
+        static float Coverage(Color[] px, float cutoff, float alphaScale)
+        {
+            if (px.Length == 0) return 0f;
+            int n = 0;
+            for (int i = 0; i < px.Length; i++) if (px[i].a * alphaScale >= cutoff) n++;
+            return (float)n / px.Length;
+        }
+
         /// <summary>Flat-colour normal (0.5,0.5,1) – handy when a material needs the keyword but no detail.</summary>
         public static Texture2D FlatNormal(int size = 4)
         {

@@ -70,7 +70,7 @@ namespace BasketballCourt.Modules
             ctx.MeshObject("TroddenStrip", g, b.ToMesh("TroddenStrip"), dirtMat, Vector3.zero, Vector3.zero, Vector3.one, false, false, true);
 
             // Bare patch where everyone steps off the path at the gate.
-            ctx.FloorQuad("GateDirt", g, new Vector3(-CourtSpec.SlabHalfX - 1.2f, y, CourtSpec.GateZ), new Vector2(2.6f, 2.2f), 8f, dirtMat);
+            ctx.FloorQuad("GateDirt", g, new Vector3(-CourtSpec.SlabHalfX - 1.3f, y, CourtSpec.GateZ + 1.6f), new Vector2(2.4f, 1.6f), 8f, dirtMat);
         }
 
         static Material DirtMaterial(BuildContext ctx)
@@ -91,11 +91,11 @@ namespace BasketballCourt.Modules
         {
             float xStart = -CourtSpec.SlabHalfX, xEnd = -30f;
             float length = xStart - xEnd;                                   // 19.5
-            Vector3 center = new Vector3((xStart + xEnd) * 0.5f, -0.05f, CourtSpec.GateZ);   // top face at −0.02
-            Mesh slab = MeshFactory.Box(new Vector3(length, 0.06f, CourtSpec.PathWidth), 0.5f, "PathSlab");
+            Vector3 center = new Vector3((xStart + xEnd) * 0.5f, -0.07f, CourtSpec.GateZ);   // top −0.02, bottom −0.12 (under the grass)
+            Mesh slab = MeshFactory.Box(new Vector3(length, 0.10f, CourtSpec.PathWidth), 0.5f, "PathSlab");
             GameObject path = ctx.MeshObject("PathSlab", g, slab, ctx.Mats.Concrete, center, Vector3.zero, Vector3.one, false);
             var col = path.AddComponent<BoxCollider>();
-            col.size = new Vector3(length, 0.06f, CourtSpec.PathWidth);
+            col.size = new Vector3(length, 0.10f, CourtSpec.PathWidth);
 
             // Expansion joints every 1.5 m: thin dark grooves on the top face.
             Material groove = ctx.Mats.Flat("PathGroove", new Color(0.3f, 0.3f, 0.3f), 0.1f, 0f);
@@ -148,7 +148,7 @@ namespace BasketballCourt.Modules
             col.height = h;
 
             // A couple of bare branches poking out of the canopy.
-            var branch = new List<Vector3> { new Vector3(0f, h * 0.7f, 0f), new Vector3(0.6f, h * 0.9f, 0.3f), new Vector3(1.1f, h * 1.05f, 0.5f) };
+            var branch = new List<Vector3> { new Vector3(0f, h * 0.7f, 0f), new Vector3(0.6f, h * 0.9f, 0.3f) + ctx.Jitter(0.2f), new Vector3(1.1f, h * 1.05f, 0.5f) + ctx.Jitter(0.3f) };
             ctx.MeshObject("Branch", t, MeshFactory.Tube(branch, 0.05f, 6, true, name + "_Branch"), bark, Vector3.zero, Vector3.zero, Vector3.one, false);
 
             int blobs = ctx.RangeInt(3, 6);
@@ -156,8 +156,20 @@ namespace BasketballCourt.Modules
             {
                 float d = ctx.Range(2.4f, 3.8f);
                 Vector3 off = ctx.InDiscXZ(1.2f) + Vector3.up * (h + 0.8f + ctx.Range(-0.3f, 1.2f));
-                ctx.Sphere("Canopy_" + i, t, off, d, canopy, false);
+                ctx.Sphere("Canopy_" + i, t, off, d, CanopyVariant(ctx, canopy, ctx.RangeInt(0, 3)), false);
             }
+        }
+
+        /// <summary>Three greens so neighbouring canopy blobs and trees differ.</summary>
+        static Material CanopyVariant(BuildContext ctx, Material canopy, int i)
+        {
+            return ctx.Mats.Get("Canopy_" + i, () =>
+            {
+                Material m = new Material(canopy);
+                m.name = "Canopy_" + i;
+                Color tint = i == 0 ? Color.white : i == 1 ? new Color(0.85f, 0.95f, 0.75f) : new Color(0.75f, 0.85f, 0.7f);
+                return m.WithColor(tint);
+            });
         }
 
         static Material CanopyMaterial(BuildContext ctx)
@@ -221,7 +233,7 @@ namespace BasketballCourt.Modules
                     Transform lamp = ctx.Group(s < 0 ? "Lamp_L" : "Lamp_R", head, new Vector3(s * 0.5f, 0.02f, 0.12f), new Vector3(30f, 0f, 0f)).transform;
                     ctx.Box("Housing", lamp, Vector3.zero, new Vector3(0.5f, 0.25f, 0.3f), dark, false);
                     ctx.Box("Lens", lamp, new Vector3(0f, 0f, 0.152f), new Vector3(0.44f, 0.2f, 0.004f), lens, false);
-                    ctx.Tube("Bracket", lamp, new Vector3(0f, 0.13f, -0.05f), new Vector3(0f, 0.2f, -0.12f), 0.02f, steel, false);
+                    ctx.Tube("Bracket", lamp, new Vector3(0f, 0.10f, -0.13f), new Vector3(0f, -0.02f, -0.13f), 0.02f, steel, false);   // housing → cross-arm
                     // Switched-off spot light the user can enable later for a night scene.
                     var light = lamp.gameObject.AddComponent<Light>();
                     light.type = LightType.Spot;
@@ -276,8 +288,14 @@ namespace BasketballCourt.Modules
             ctx.MeshObject("Drain", f, MeshFactory.Disc(0.035f, 12, "Drain"), ctx.Mats.Flat("DrainGrate", new Color(0.15f, 0.15f, 0.15f), 0.4f, 0.6f),
                 new Vector3(0f, 0.851f, -0.03f), Vector3.zero, Vector3.one, false, false, true);
             // Wet ring on the slab where the overflow drips.
-            Material damp = ctx.Mats.Get("FountainDamp", () => MatKit.Make("FountainDamp", new Color(0.08f, 0.09f, 0.09f, 0.5f), 0.9f, 0f).Fade());
-            ctx.FloorQuad("DampPatch", f, new Vector3(0.1f, CourtSpec.DecalY + 0.0006f, 0.2f), new Vector2(0.7f, 0.5f), 0f, damp);
+            Texture2D dampTex = ctx.Tex.Get("damp_blob", () => ProceduralTextures.Create(128, 128, (u, v) =>
+            {
+                float blob = ProceduralTextures.SoftBlob(u, v, 0.5f, 0.5f, 0.45f, 0.8f, 151);
+                float speck = ProceduralTextures.Fbm(u, v, 16, 3, 152);
+                return new Color(0.9f, 0.92f, 0.92f, Mathf.Clamp01(blob * 1.3f) * Mathf.Clamp01(speck * 1.6f - 0.2f));
+            }, false, TextureWrapMode.Clamp, FilterMode.Trilinear, 4, "damp_blob"));
+            Material damp = ctx.Mats.Get("FountainDamp", () => MatKit.Make("FountainDamp", new Color(0.10f, 0.11f, 0.11f), 0.6f, 0f).WithAlbedo(dampTex, 1f, 1f).Cutout(0.35f));
+            ctx.FloorQuad("DampPatch", f, new Vector3(0.1f, CourtSpec.DecalY, 0.2f), new Vector2(0.7f, 0.5f), 0f, damp);
         }
     }
 }

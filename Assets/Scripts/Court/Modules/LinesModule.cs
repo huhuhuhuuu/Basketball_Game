@@ -169,7 +169,14 @@ namespace BasketballCourt.Modules
         /// <summary>Boundary rectangle: outer edges at |x| = 7.5, |z| = 14 (mitred corners).</summary>
         static void AddBoundary(MeshFactory.Builder b)
         {
-            MeshFactory.AppendRectOutline(b, -SideX, -EndZ, SideX, EndZ, LineW, Y, UvPerMeter);
+            // Four open segments (a closed ribbon would run the wear texture backwards along one side):
+            // endlines across the full width, extended half a line so the corners are solid, and sidelines
+            // running between the endlines' inner edges.
+            Seg(b, -SideX, EndZ, SideX, EndZ, LineW, HalfW);
+            Seg(b, -SideX, -EndZ, SideX, -EndZ, LineW, HalfW);
+            float zIn = EndZ - HalfW;   // 13.95
+            Seg(b, SideX, -zIn, SideX, zIn, LineW, 0f);
+            Seg(b, -SideX, -zIn, -SideX, zIn, LineW, 0f);
         }
 
         /// <summary>

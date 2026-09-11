@@ -44,6 +44,9 @@ namespace BasketballCourt
         [Range(20f, 200f)] public float shadowDistance = 90f;
 
         BuildContext _ctx;
+        bool _qualityApplied;
+        float _prevShadowDistance;
+        int _prevShadowCascades;
 
         /// <summary>True when a generated court already exists under this object.</summary>
         public bool IsBuilt { get { return transform.Find(GeneratedRootName) != null; } }
@@ -84,8 +87,13 @@ namespace BasketballCourt
 
             if (Application.isPlaying)
             {
-                // Everything is static: let Unity merge draw calls.
-                StaticBatchingUtility.Combine(root);
+                // Merge draw calls per module. The props (balls, litter) are left out so they can be given
+                // physics or moved later without their visuals staying frozen in a static batch.
+                for (int i = 0; i < root.transform.childCount; i++)
+                {
+                    GameObject group = root.transform.GetChild(i).gameObject;
+                    if (group.name != "Props") StaticBatchingUtility.Combine(group);
+                }
             }
 
             Debug.Log(string.Format("[CourtBuilder] Court built in {0:0.00}s ({1} objects).",
@@ -136,8 +144,23 @@ namespace BasketballCourt
             RenderSettings.fogColor = new Color(0.72f, 0.78f, 0.86f);
             RenderSettings.fogStartDistance = 90f;
             RenderSettings.fogEndDistance = 400f;
+            if (!_qualityApplied)
+            {
+                _prevShadowDistance = QualitySettings.shadowDistance;
+                _prevShadowCascades = QualitySettings.shadowCascades;
+                _qualityApplied = true;
+            }
             QualitySettings.shadowDistance = shadowDistance;
             QualitySettings.shadowCascades = 4;
+        }
+
+        /// <summary>Quality settings are project-wide (they persist after Play in the editor), so put them back.</summary>
+        void OnDestroy()
+        {
+            if (!_qualityApplied) return;
+            QualitySettings.shadowDistance = _prevShadowDistance;
+            QualitySettings.shadowCascades = _prevShadowCascades;
+            _qualityApplied = false;
         }
     }
 }

@@ -61,9 +61,24 @@ namespace BasketballCourt
                 SyncAnglesFromTransform();
             }
             if (Input.GetKeyDown(KeyCode.H)) showHelp = !showHelp;
+            // Safety net: if the right button was released outside the window (or Escape is pressed) the
+            // PointerUp never arrives, so make sure the cursor is never stuck locked.
+            if (Cursor.lockState == CursorLockMode.Locked && (Input.GetKeyDown(KeyCode.Escape) || !Input.GetMouseButton(1)))
+                Unlock();
 
             HandleLook();
             HandleMove();
+        }
+
+        void OnApplicationFocus(bool focus)
+        {
+            if (!focus) Unlock();
+        }
+
+        static void Unlock()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         void HandleLook()

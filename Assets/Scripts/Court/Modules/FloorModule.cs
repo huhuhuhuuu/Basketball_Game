@@ -86,7 +86,8 @@ namespace BasketballCourt.Modules
             Vector3 size   = new Vector3(CourtSpec.SlabHalfX * 2f, CourtSpec.SlabThick, CourtSpec.SlabHalfZ * 2f);
             Vector3 center = new Vector3(0f, -CourtSpec.SlabThick * 0.5f - 0.001f, 0f);
 
-            Mesh body = MeshFactory.Box(size, 1f / ConcreteTileMetres, "SlabBody");
+            // No top face: the CourtSurface plane 1 mm above it is the top, so nothing can z-fight with it.
+            Mesh body = MeshFactory.Box(size, 1f / ConcreteTileMetres, "SlabBody", 1, false);
             GameObject go = ctx.MeshObject("SlabBody", slab, body, SlabConcreteMaterial(ctx),
                 center, Vector3.zero, Vector3.one, meshCollider: false, castShadows: true, receiveShadows: true);
 
@@ -173,14 +174,16 @@ namespace BasketballCourt.Modules
                 float hgt = field[py * TexSize + px];
 
                 // Where the paint has been scuffed thin (large soft patches) the stone tops show through.
-                float wearZone = Smooth01(0.45f, 0.70f, ProceduralTextures.Fbm(u, v, 4, 3, seed + 11));
+                // Only fine, statistically uniform wear lives in the tiled texture (big patches would repeat in
+                // a visible grid every 2.5 m); the large-scale wear is in the non-tiled detail map instead.
+                float wearZone = Smooth01(0.5f, 0.75f, ProceduralTextures.Fbm(u, v, 24, 3, seed + 11));
                 float exposed  = Smooth01(0.72f, 0.95f, hgt) * wearZone;
 
                 // Uneven paint thickness from the roller, and fine grit speckle.
-                float roller = 1f + (ProceduralTextures.Fbm(u, v, 2, 3, seed + 12) - 0.5f) * 0.12f;
+                float roller = 1f + (ProceduralTextures.Fbm(u, v, 16, 2, seed + 12) - 0.5f) * 0.1f;
                 float grit   = (ProceduralTextures.Fbm(u, v, 128, 2, seed + 13) - 0.5f) * 0.10f;
 
-                Color c = Color.Lerp(paint * roller, stone, exposed * 0.85f);
+                Color c = Color.Lerp(paint * roller, stone, exposed * 0.5f);
                 float shade = (0.72f + 0.28f * hgt) * (1f + grit);   // valleys between stones are darker
                 c *= shade;
                 c.a = 1f;
@@ -225,6 +228,7 @@ namespace BasketballCourt.Modules
             d -= WaterStain(x, z,  4.5f,  15.6f, 0.9f, seed + 22);   // near the NE corner
             d -= Cracks(x, z, su, sv, seed);
             d += ChalkyPatches(su, sv, seed);
+            d += 0.05f * Smooth01(0.55f, 0.7f, ProceduralTextures.Fbm(su, sv, 5, 4, seed + 14));   // paint worn thin in big patches
             d += (ProceduralTextures.Fbm(su, sv, 64, 2, seed + 8) - 0.5f) * 0.04f;   // fine speckle hides banding
             // The Standard shader doubles the detail map (and the texture is sRGB), so keep the range gentle.
             return Mathf.Clamp(d, 0.25f, 0.72f);
@@ -275,6 +279,9 @@ namespace BasketballCourt.Modules
         /// <summary>A dried puddle: slightly dark inside with a darker "tide mark" ring at its edge.</summary>
         static float WaterStain(float x, float z, float cx, float cz, float radius, int seed)
         {
+            // Cheap early-out for the 99 % of texels nowhere near the stain.
+            float ddx = x - cx, ddz = z - cz;
+            if (ddx * ddx + ddz * ddz > radius * radius * 4f) return 0f;
             // SoftBlob works in any units; we pass metres / 10 so a radius of 1.3 m becomes 0.13.
             float s = ProceduralTextures.SoftBlob(x * 0.1f, z * 0.1f, cx * 0.1f, cz * 0.1f, radius * 0.1f, 0.5f, seed);
             if (s <= 0f) return 0f;

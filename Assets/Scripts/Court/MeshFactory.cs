@@ -312,28 +312,44 @@ namespace BasketballCourt
 
         // ── Boxes / panels / deformation ─────────────────────────────────────
 
-        /// <summary>Axis-aligned box mesh with per-face UVs (tiling in metres × `uvPerMeter`).</summary>
-        public static Mesh Box(Vector3 size, float uvPerMeter = 1f, string name = "Box")
+        /// <summary>
+        /// Axis-aligned box mesh with per-face UVs (tiling in metres × `uvPerMeter`). `subdivisions` > 1 splits
+        /// every face into a grid so the box can be crumpled/dented with <see cref="Displace"/>;
+        /// `includeTop = false` leaves the +Y face out (handy for a slab whose top is a separate plane).
+        /// </summary>
+        public static Mesh Box(Vector3 size, float uvPerMeter = 1f, string name = "Box", int subdivisions = 1, bool includeTop = true)
         {
             var b = new Builder();
             Vector3 h = size * 0.5f;
-            AddFace(b, new Vector3(0, 0, -h.z), Vector3.back, Vector3.right, Vector3.up, size.x, size.y, uvPerMeter);
-            AddFace(b, new Vector3(0, 0, h.z), Vector3.forward, Vector3.left, Vector3.up, size.x, size.y, uvPerMeter);
-            AddFace(b, new Vector3(-h.x, 0, 0), Vector3.left, Vector3.back, Vector3.up, size.z, size.y, uvPerMeter);
-            AddFace(b, new Vector3(h.x, 0, 0), Vector3.right, Vector3.forward, Vector3.up, size.z, size.y, uvPerMeter);
-            AddFace(b, new Vector3(0, h.y, 0), Vector3.up, Vector3.right, Vector3.forward, size.x, size.z, uvPerMeter);
-            AddFace(b, new Vector3(0, -h.y, 0), Vector3.down, Vector3.right, Vector3.back, size.x, size.z, uvPerMeter);
+            AddFace(b, new Vector3(0, 0, -h.z), Vector3.back, Vector3.right, Vector3.up, size.x, size.y, uvPerMeter, subdivisions);
+            AddFace(b, new Vector3(0, 0, h.z), Vector3.forward, Vector3.left, Vector3.up, size.x, size.y, uvPerMeter, subdivisions);
+            AddFace(b, new Vector3(-h.x, 0, 0), Vector3.left, Vector3.back, Vector3.up, size.z, size.y, uvPerMeter, subdivisions);
+            AddFace(b, new Vector3(h.x, 0, 0), Vector3.right, Vector3.forward, Vector3.up, size.z, size.y, uvPerMeter, subdivisions);
+            if (includeTop)
+                AddFace(b, new Vector3(0, h.y, 0), Vector3.up, Vector3.right, Vector3.forward, size.x, size.z, uvPerMeter, subdivisions);
+            AddFace(b, new Vector3(0, -h.y, 0), Vector3.down, Vector3.right, Vector3.back, size.x, size.z, uvPerMeter, subdivisions);
             return b.ToMesh(name);
         }
 
-        static void AddFace(Builder b, Vector3 center, Vector3 normal, Vector3 right, Vector3 up, float w, float hgt, float uvPerMeter)
+        /// <summary>One rectangular face (a `sub`×`sub` grid of quads) facing `normal`, `w` along `right`, `hgt` along `up`.</summary>
+        public static void AddFace(Builder b, Vector3 center, Vector3 normal, Vector3 right, Vector3 up, float w, float hgt, float uvPerMeter, int sub = 1)
         {
-            Vector3 r = right * (w * 0.5f), u = up * (hgt * 0.5f);
-            int a = b.Add(center - r - u, normal, new Vector2(0, 0));
-            int c = b.Add(center + r - u, normal, new Vector2(w * uvPerMeter, 0));
-            int d = b.Add(center + r + u, normal, new Vector2(w * uvPerMeter, hgt * uvPerMeter));
-            int e = b.Add(center - r + u, normal, new Vector2(0, hgt * uvPerMeter));
-            b.Quad(a, e, d, c);
+            sub = Mathf.Max(1, sub);
+            int first = b.V.Count;
+            for (int j = 0; j <= sub; j++)
+            for (int i = 0; i <= sub; i++)
+            {
+                float fx = (float)i / sub - 0.5f, fy = (float)j / sub - 0.5f;
+                b.Add(center + right * (fx * w) + up * (fy * hgt), normal,
+                    new Vector2((fx + 0.5f) * w * uvPerMeter, (fy + 0.5f) * hgt * uvPerMeter));
+            }
+            int stride = sub + 1;
+            for (int j = 0; j < sub; j++)
+            for (int i = 0; i < sub; i++)
+            {
+                int a = first + j * stride + i;   // (-right, -up) corner of this cell
+                b.Quad(a, a + stride, a + stride + 1, a + 1);
+            }
         }
 
         /// <summary>

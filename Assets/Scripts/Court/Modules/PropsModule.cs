@@ -64,9 +64,13 @@ namespace BasketballCourt.Modules
 
         static void PlaceBall(BuildContext ctx, Transform g, string name, Mesh mesh, Material mat, Vector3 pos, Vector3 scale, float yaw)
         {
+            // The squash (for the flat ball) lives on an un-rotated holder so it always flattens vertically;
+            // the ball itself is rotated inside it so the seams point somewhere random.
+            GameObject holder = ctx.Group(name, g, pos, Vector3.zero);
+            holder.transform.localScale = scale;
             Vector3 euler = new Vector3(ctx.Range(-40f, 40f), yaw, ctx.Range(-40f, 40f));
-            GameObject go = ctx.MeshObject(name, g, mesh, mat, pos, euler, scale, false);
-            var col = go.AddComponent<SphereCollider>();
+            ctx.MeshObject("Ball", holder.transform, mesh, mat, Vector3.zero, euler, Vector3.one, false);
+            var col = holder.AddComponent<SphereCollider>();
             col.radius = BallRadius;
         }
 
@@ -158,30 +162,30 @@ namespace BasketballCourt.Modules
             // Black bin liner: a rumpled disc at the liner level, folded over the rim on one side.
             Mesh liner = MeshFactory.Disc(0.29f, 32, "BinLiner");
             MeshFactory.Displace(liner, v => new Vector3(0f, (ProceduralTextures.Fbm(v.x * 2f + 0.5f, v.z * 2f + 0.5f, 6, 3, 77) - 0.5f) * 0.08f, 0f));
-            Material plastic = ctx.Mats.Flat("BinLinerPlastic", new Color(0.05f, 0.05f, 0.06f), 0.55f, 0f);
-            ctx.MeshObject("Liner", bin, liner, plastic, new Vector3(0f, 0.72f, 0f), Vector3.zero, Vector3.one, false);
+            Material plastic = ctx.Mats.Flat("BinLinerPlastic", new Color(0.13f, 0.13f, 0.14f), 0.5f, 0f);
+            ctx.MeshObject("Liner", bin, liner, plastic, new Vector3(0f, 0.78f, 0f), Vector3.zero, Vector3.one, false);
             ctx.Box("LinerFlap", bin, new Vector3(0.30f, 0.80f, 0.05f), new Vector3(0.06f, 0.14f, 0.16f), plastic, false, new Vector3(6f, 15f, 12f));
 
             // Overflow: crumpled paper, a pizza box corner and a bottle sticking out.
             Material paper = ctx.Mats.Flat("Paper", new Color(0.9f, 0.9f, 0.87f), 0.15f, 0f);
             // The pile rises above the rim (0.87) so the bin clearly overflows.
-            CrumpledPaper(ctx, bin, "PaperBall_A", new Vector3(0.10f, 0.86f, -0.12f), 0.06f, paper, 11);
-            CrumpledPaper(ctx, bin, "PaperBall_B", new Vector3(-0.14f, 0.85f, 0.08f), 0.05f, paper, 12);
-            CrumpledPaper(ctx, bin, "PaperBall_C", new Vector3(0.02f, 0.93f, 0.15f), 0.045f, paper, 13);
+            CrumpledPaper(ctx, bin, "PaperBall_A", new Vector3(0.10f, 0.84f, -0.12f), 0.06f, paper, 11);   // resting on the liner
+            CrumpledPaper(ctx, bin, "PaperBall_B", new Vector3(-0.14f, 0.83f, 0.08f), 0.05f, paper, 12);
+            CrumpledPaper(ctx, bin, "PaperBall_C", new Vector3(0.02f, 0.93f, 0.15f), 0.045f, paper, 13);   // on top of the pile
             CrumpledPaper(ctx, bin, "PaperBall_D", new Vector3(0.34f, 0.03f, -0.22f), 0.04f, paper, 14);   // one missed the bin
-            ctx.Box("PizzaBoxCorner", bin, new Vector3(-0.06f, 0.9f, -0.02f), new Vector3(0.33f, 0.03f, 0.33f), Cardboard(ctx), false, new Vector3(38f, 25f, 8f));
+            ctx.Box("PizzaBoxCorner", bin, new Vector3(-0.06f, 0.88f, -0.02f), new Vector3(0.33f, 0.03f, 0.33f), Cardboard(ctx), false, new Vector3(38f, 25f, 8f));
             Bottle(ctx, bin, "BinBottle", new Vector3(0.14f, 0.84f, 0.1f), new Vector3(-55f, 20f, 30f), 0.9f);
 
-            // Lid resting askew on the rim / the rubbish.
+            // The lid was taken off and left leaning against the bin (bottom edge on the slab, top edge on the
+            // bin wall) – that is why the bin overflows.
             var lid = new List<Vector2>
             {
                 new Vector2(0f, 0f), new Vector2(0.30f, 0f), new Vector2(0.335f, 0f), new Vector2(0.335f, 0.03f),
                 new Vector2(0.30f, 0.045f), new Vector2(0.16f, 0.07f), new Vector2(0f, 0.08f),
             };
             Mesh lidMesh = MeshFactory.Lathe(lid, 32, "TrashCanLid");
-            // One edge rests on the rim, the other on the rubbish, so part of the opening shows.
-            Vector3 lidPos = new Vector3(0.21f, 0.97f, -0.15f);
-            Vector3 lidRot = new Vector3(28f, 40f, -8f);
+            Vector3 lidPos = new Vector3(0.45f, 0.33f, 0.05f);
+            Vector3 lidRot = new Vector3(0f, 0f, -71f);
             ctx.MeshObject("Lid", bin, lidMesh, ctx.Mats.PaintedGreenSteel, lidPos, lidRot, Vector3.one, false);
             ctx.Sphere("LidHandle", bin, lidPos + Quaternion.Euler(lidRot) * new Vector3(0f, 0.095f, 0f), 0.05f, ctx.Mats.PaintedGreenSteel, false);
         }
@@ -235,8 +239,8 @@ namespace BasketballCourt.Modules
             Bottle(ctx, g, "BenchBottle", bench0 + new Vector3(0.05f, 0.033f, 0.25f), new Vector3(90f, 0f, 0f), 1f);
             ctx.Tube("LooseCap", g, bench0 + new Vector3(-0.15f, 0.016f, 0.5f), bench0 + new Vector3(-0.13f, 0.016f, 0.5f), 0.016f,
                 ctx.Mats.Flat("BottleCap", new Color(0.15f, 0.4f, 0.85f), 0.5f, 0f), false);
-            Napkin(ctx, g, "Napkin_B", bench0 + new Vector3(0.0f, CourtSpec.DecalY, -0.4f), 0.14f, 110f);
-            FoilSandwich(ctx, g, bench0 + new Vector3(-0.05f, 0.45f, 0.55f));
+            Napkin(ctx, g, "Napkin_B", bench0 + new Vector3(0.0f, CourtSpec.OverlayY, -0.4f), 0.14f, 110f);
+            FoilSandwich(ctx, g, bench1 + new Vector3(-0.05f, 0.45f, 0.6f));
 
             // Around the trash can: chip bag, another can, a cup that missed the bin.
             ChipBag(ctx, g, bin + new Vector3(0.65f, 0f, 0.5f));
@@ -279,21 +283,21 @@ namespace BasketballCourt.Modules
             Material cheese = ctx.Mats.Flat("Cheese", new Color(0.93f, 0.78f, 0.36f), 0.45f, 0f);
             Material crust = ctx.Mats.Flat("Crust", new Color(0.72f, 0.48f, 0.24f), 0.25f, 0f);
             Material pepperoni = ctx.Mats.Flat("Pepperoni", new Color(0.62f, 0.15f, 0.1f), 0.35f, 0f);
-            ctx.MeshObject("Cheese", slice, MeshFactory.Polygon(wedge, "PizzaWedge"), cheese, new Vector3(0f, 0.006f, 0f), Vector3.zero, Vector3.one, false, false, true);
-            ctx.MeshObject("SliceBase", slice, MeshFactory.Polygon(wedge, "PizzaWedgeBase"), crust, new Vector3(0f, 0.003f, 0f), Vector3.zero, Vector3.one, false, false, true);
+            ctx.MeshObject("SliceBody", slice, ExtrudedWedge(wedge, 0.008f, "PizzaWedgeBody"), crust, Vector3.zero, Vector3.zero, Vector3.one, false);
+            ctx.MeshObject("Cheese", slice, MeshFactory.Polygon(wedge, "PizzaWedge"), cheese, new Vector3(0f, 0.0085f, 0f), Vector3.zero, Vector3.one, false, false, true);
             ctx.MeshObject("Crust", slice, MeshFactory.Tube(crustPath, 0.012f, 8, true, "Crust"), crust, Vector3.zero, Vector3.zero, Vector3.one, false);
             for (int i = 0; i < 3; i++)
             {
                 float a = Mathf.Lerp(-18f, 18f, i / 2f) * Mathf.Deg2Rad, r = 0.06f + i * 0.03f;
                 ctx.MeshObject("Pepperoni_" + i, slice, MeshFactory.Disc(0.017f, 16, "Pepperoni"), pepperoni,
-                    new Vector3(Mathf.Cos(a) * r, 0.0085f, Mathf.Sin(a) * r), Vector3.zero, Vector3.one, false, false, true);
+                    new Vector3(Mathf.Cos(a) * r, 0.011f, Mathf.Sin(a) * r), Vector3.zero, Vector3.one, false, false, true);
             }
             // A gnawed crust end left on the other side of the box.
             var end = new List<Vector3> { new Vector3(0.09f, 0.008f, 0.1f), new Vector3(0.12f, 0.008f, 0.08f), new Vector3(0.14f, 0.009f, 0.05f) };
             ctx.MeshObject("CrustEnd", box, MeshFactory.Tube(end, 0.012f, 8, true, "CrustEnd"), crust, new Vector3(0f, 0.015f, 0f), Vector3.zero, Vector3.one, false);
 
             // Grease spots on the box bottom.
-            Material grease = ctx.Mats.Get("Grease", () => MatKit.Make("Grease", new Color(0.45f, 0.32f, 0.12f, 0.45f), 0.6f, 0f).Fade());
+            Material grease = ctx.Mats.Get("Grease", () => MatKit.Make("Grease", new Color(0.42f, 0.30f, 0.12f), 0.55f, 0f));
             ctx.FloorQuad("Grease_A", box, new Vector3(0.07f, 0.0155f, 0.06f), new Vector2(0.09f, 0.07f), 20f, grease);
             ctx.FloorQuad("Grease_B", box, new Vector3(-0.08f, 0.0155f, 0.1f), new Vector2(0.06f, 0.05f), 70f, grease);
         }
@@ -322,7 +326,7 @@ namespace BasketballCourt.Modules
             Material alu = ctx.Mats.Get(name + "_Alu", () => MatKit.Make(name + "_Alu", colour, 0.62f, 0.8f));
             Material silver = ctx.Mats.Flat("CanSilver", new Color(0.8f, 0.8f, 0.82f), 0.7f, 0.9f);
             // Lying on its side: the can's axis along local X after a 90° roll about Z; centre one radius up.
-            Transform can = ctx.Group(name, g, pos + Vector3.up * 0.032f, new Vector3(0f, ctx.Range(0f, 360f), 90f)).transform;
+            Transform can = ctx.Group(name, g, pos + Vector3.up * 0.04f, new Vector3(0f, ctx.Range(0f, 360f), 90f)).transform;
             ctx.MeshObject("Can", can, m, alu, new Vector3(0f, -0.035f, 0f), Vector3.zero, Vector3.one, false);
             ctx.MeshObject("Top", can, MeshFactory.Disc(0.027f, 20, "CanTop"), silver, new Vector3(0f, 0.115f * 0.6f - 0.035f + 0.0005f, 0f), Vector3.zero, Vector3.one, false, false, true);
         }
@@ -348,7 +352,7 @@ namespace BasketballCourt.Modules
         /// <summary>Crumpled foil chip bag: a thin box displaced with noise, shiny yellow.</summary>
         static void ChipBag(BuildContext ctx, Transform g, Vector3 pos)
         {
-            Mesh m = MeshFactory.Box(new Vector3(0.18f, 0.025f, 0.25f), 4f, "ChipBag");
+            Mesh m = MeshFactory.Box(new Vector3(0.18f, 0.025f, 0.25f), 4f, "ChipBag", 8);
             int seed = ctx.RangeInt(1, 100000);
             MeshFactory.Displace(m, v =>
             {
@@ -364,7 +368,7 @@ namespace BasketballCourt.Modules
         /// <summary>Half a sandwich wrapped in crinkled foil, on a bench seat.</summary>
         static void FoilSandwich(BuildContext ctx, Transform g, Vector3 seatPoint)
         {
-            Mesh m = MeshFactory.Box(new Vector3(0.12f, 0.05f, 0.1f), 6f, "FoilSandwich");
+            Mesh m = MeshFactory.Box(new Vector3(0.12f, 0.05f, 0.1f), 6f, "FoilSandwich", 6);
             int seed = ctx.RangeInt(1, 100000);
             MeshFactory.Displace(m, v =>
             {
@@ -397,18 +401,21 @@ namespace BasketballCourt.Modules
         static void BuildSportsBag(BuildContext ctx, Transform g)
         {
             // Between bench 2 and the fence, leaning on the fence (top tilted toward +X).
-            Vector3 pos = new Vector3(CourtSpec.FenceHalfX - 0.17f, 0.15f, CourtSpec.BenchEastZ[2] - 1.35f);
+            // Centre height puts the low (fence-side) bottom corner on the slab after the 12° lean.
+            Vector3 pos = new Vector3(CourtSpec.FenceHalfX - 0.20f, 0.171f, CourtSpec.BenchEastZ[2] - 1.35f);
             Transform bag = ctx.Group("Bag", g, pos, new Vector3(0f, ctx.Range(-8f, 8f), -12f)).transform;
 
-            Mesh m = MeshFactory.Box(new Vector3(0.26f, 0.3f, 0.46f), 3f, "SportsBag");
+            Mesh m = MeshFactory.Box(new Vector3(0.26f, 0.3f, 0.46f), 3f, "SportsBag", 8);
             int seed = ctx.RangeInt(1, 100000);
             MeshFactory.Displace(m, v =>
             {
-                // Round the box off and let the top sag (a half-empty bag slumps).
+                // Round the box off, let the top sag in the middle (a half-empty bag slumps) and add creases.
                 float n = ProceduralTextures.Fbm(v.z * 1.5f + 0.5f, v.y * 1.5f + v.x + 0.5f, 3, 3, seed) - 0.5f;
                 Vector3 round = -new Vector3(v.x, 0f, v.z) * 0.12f * Mathf.Clamp01(Mathf.Abs(v.y) / 0.15f);
-                float sag = v.y > 0.1f ? -0.05f * (1f - Mathf.Abs(v.z) / 0.23f) : 0f;
-                return round + new Vector3(0f, sag, 0f) + new Vector3(n, n, n) * 0.015f;
+                float top = Mathf.Clamp01((v.y - 0.05f) / 0.1f);
+                float middle = Mathf.Exp(-(v.z * v.z) / (2f * 0.12f * 0.12f)) * Mathf.Exp(-(v.x * v.x) / (2f * 0.1f * 0.1f));
+                float sag = -0.06f * top * middle;
+                return round + new Vector3(0f, sag, 0f) + new Vector3(n, n, n) * 0.012f;
             });
             Material fabric = ctx.Mats.Get("BagFabric", () => MatKit.Make("BagFabric", new Color(0.12f, 0.16f, 0.36f), 0.15f, 0f));
             GameObject body = ctx.MeshObject("Body", bag, m, fabric, Vector3.zero, Vector3.zero, Vector3.one, false);
@@ -420,14 +427,38 @@ namespace BasketballCourt.Modules
             for (int s = 0; s < 2; s++)
             {
                 float z = s == 0 ? -0.12f : 0.12f;
-                var path = MeshFactory.ArcPoints(new Vector3(0f, 0.1f, z), 0.16f, 0f, 180f, 12, 0f);
-                for (int i = 0; i < path.Count; i++) path[i] = new Vector3(path[i].x, 0.1f + (path[i].z - z) * 0.9f, z);   // stand the arc up in the XY plane
+                var path = MeshFactory.ArcPoints(new Vector3(0f, 0.13f, z), 0.11f, 0f, 180f, 12, 0f);
+                for (int i = 0; i < path.Count; i++) path[i] = new Vector3(path[i].x, 0.13f + (path[i].z - z) * 1.1f, z);   // stand the arc up in the XY plane; ends inside the fabric
                 MeshFactory.AppendTube(b, path, 0.012f, 8, true, 1f);
             }
             Material strap = ctx.Mats.Flat("BagStrap", new Color(0.08f, 0.08f, 0.1f), 0.2f, 0f);
             ctx.MeshObject("Straps", bag, b.ToMesh("BagStraps"), strap, Vector3.zero, Vector3.zero, Vector3.one, false);
             ctx.Box("Zipper", bag, new Vector3(0f, 0.15f, 0f), new Vector3(0.012f, 0.006f, 0.4f), ctx.Mats.Flat("Zipper", new Color(0.7f, 0.7f, 0.72f), 0.6f, 0.8f), false);
-            ctx.Box("LogoPatch", bag, new Vector3(0.131f, 0.02f, 0.05f), new Vector3(0.004f, 0.06f, 0.1f), ctx.Mats.Flat("BagLogo", new Color(0.9f, 0.85f, 0.2f), 0.3f, 0f), false);
+            ctx.Box("LogoPatch", bag, new Vector3(-0.131f, 0.02f, 0.05f), new Vector3(0.004f, 0.06f, 0.1f), ctx.Mats.Flat("BagLogo", new Color(0.9f, 0.85f, 0.2f), 0.3f, 0f), false);
+        }
+
+        /// <summary>A flat polygon (points (x,z), ordered by increasing angle) extruded up by `thickness`.</summary>
+        static Mesh ExtrudedWedge(IList<Vector2> pts, float thickness, string name)
+        {
+            var b = new MeshFactory.Builder();
+            int n = pts.Count;
+            int top = b.V.Count;
+            for (int i = 0; i < n; i++) b.Add(new Vector3(pts[i].x, thickness, pts[i].y), Vector3.up, pts[i]);
+            for (int i = 1; i < n - 1; i++) b.Tri(top, top + i + 1, top + i);
+            int bottom = b.V.Count;
+            for (int i = 0; i < n; i++) b.Add(new Vector3(pts[i].x, 0f, pts[i].y), Vector3.down, pts[i]);
+            for (int i = 1; i < n - 1; i++) b.Tri(bottom, bottom + i, bottom + i + 1);
+            for (int i = 0; i < n; i++)
+            {
+                int j = (i + 1) % n;
+                Vector3 p0 = new Vector3(pts[i].x, 0f, pts[i].y), p1 = new Vector3(pts[j].x, 0f, pts[j].y);
+                Vector3 edge = p1 - p0;
+                Vector3 nrm = new Vector3(edge.z, 0f, -edge.x).normalized;   // outward for counter-clockwise points
+                int s0 = b.Add(p0, nrm, Vector2.zero), s1 = b.Add(p1, nrm, Vector2.right);
+                int s2 = b.Add(p1 + Vector3.up * thickness, nrm, Vector2.one), s3 = b.Add(p0 + Vector3.up * thickness, nrm, Vector2.up);
+                b.Quad(s0, s3, s2, s1);
+            }
+            return b.ToMesh(name);
         }
 
         // ── Shared materials ─────────────────────────────────────────────────

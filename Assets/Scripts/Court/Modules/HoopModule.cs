@@ -127,7 +127,7 @@ namespace BasketballCourt.Modules
 
             // Clamp block that grabs the arm end behind the board (also hides the pipe's end cap).
             float clampZ = CourtSpec.BackboardZ + CourtSpec.BackboardThick + 0.04f + Sink;   // 12.871
-            ctx.Box("ArmClamp", g, new Vector3(0f, 3.94f, clampZ), new Vector3(0.16f, 0.16f, 0.08f), steel, false);
+            ctx.Box("ArmClamp", g, new Vector3(0f, 3.95f, clampZ), new Vector3(0.16f, 0.14f, 0.08f), steel, false);   // bottom 3.88, inside the upper bar
         }
 
         /// <summary>

@@ -20,6 +20,13 @@ namespace BasketballCourt.Modules
     /// </summary>
     public static class WearModule
     {
+        // Sub-layers under the painted lines (LineY = 0.004) so co-planar decals never z-fight:
+        // dirt at DecalY, then rust, cracks, the damp ring and the puddle each a hair higher.
+        const float RustY  = CourtSpec.DecalY + 0.0004f;
+        const float CrackY = CourtSpec.DecalY + 0.0008f;
+        const float DampY  = CourtSpec.DecalY + 0.0012f;
+        const float WaterY = CourtSpec.DecalY + 0.0016f;
+
         public static void Build(BuildContext ctx, Transform parent)
         {
             BuildDirt(ctx, ctx.Group("Dirt", parent).transform);
@@ -39,9 +46,9 @@ namespace BasketballCourt.Modules
         {
             Material[] mats =
             {
-                DirtMaterial(ctx, "Dirt_Dark", new Color(0.12f, 0.10f, 0.08f)),
-                DirtMaterial(ctx, "Dirt_Grey", new Color(0.16f, 0.15f, 0.14f)),
-                DirtMaterial(ctx, "Dirt_Brown", new Color(0.18f, 0.13f, 0.08f)),
+                DirtMaterial(ctx, "Dirt_Dark", new Color(0.18f, 0.15f, 0.12f)),
+                DirtMaterial(ctx, "Dirt_Grey", new Color(0.2f, 0.19f, 0.18f)),
+                DirtMaterial(ctx, "Dirt_Brown", new Color(0.22f, 0.16f, 0.1f)),
             };
             float fx = CourtSpec.FenceHalfX, fz = CourtSpec.FenceHalfZ;
             // Corners, fence base and bench feet – never in the middle of the keys.
@@ -69,8 +76,9 @@ namespace BasketballCourt.Modules
             Texture2D tex = ctx.Tex.Get("dirt_blob", () => ProceduralTextures.Create(256, 256, (u, v) =>
             {
                 float blob = ProceduralTextures.SoftBlob(u, v, 0.5f, 0.5f, 0.46f, 0.9f, 101);
-                float speck = ProceduralTextures.Fbm(u, v, 12, 4, 102);
-                float alpha = Mathf.Clamp01(blob * 1.3f) * (0.35f + speck * 0.75f);
+                float speck = ProceduralTextures.Fbm(u, v, 24, 4, 102);
+                // The speckle punches holes through the blob so the grime reads as translucent, not a solid patch.
+                float alpha = Mathf.Clamp01(blob * 1.3f) * Mathf.Clamp01(speck * 1.6f - 0.25f);
                 float shade = 0.85f + speck * 0.3f;
                 return new Color(shade, shade, shade, alpha);
             }, false, TextureWrapMode.Clamp, FilterMode.Trilinear, 4, "dirt_blob"));
@@ -126,10 +134,10 @@ namespace BasketballCourt.Modules
                 CrackMaterial(ctx, 0, ctx.RangeInt(1, 100000)),
                 CrackMaterial(ctx, 1, ctx.RangeInt(1, 100000)),
             };
-            Vector3[] spots = { new Vector3(-6.5f, 0f, -12.5f), new Vector3(5.2f, 0f, 3.4f), new Vector3(-3.8f, 0f, 15.6f), new Vector3(8.3f, 0f, -9.2f) };
+            Vector3[] spots = { new Vector3(-4.8f, 0f, -13.2f), new Vector3(5.2f, 0f, 3.4f), new Vector3(-3.8f, 0f, 15.6f), new Vector3(8.3f, 0f, -9.2f) };
             for (int i = 0; i < spots.Length; i++)
             {
-                Vector3 p = spots[i]; p.y = CourtSpec.DecalY;
+                Vector3 p = spots[i]; p.y = CrackY;
                 float s = ctx.Range(2.0f, 3.0f);
                 ctx.FloorQuad("Crack_" + i, g, p, new Vector2(s, s), ctx.Range(0f, 360f), mats[i % 2]);
             }
@@ -160,7 +168,7 @@ namespace BasketballCourt.Modules
                     return new Color(shade, shade, shade * 0.95f, alpha);
                 }, false, TextureWrapMode.Clamp, FilterMode.Trilinear, 4, "crack_" + variant);
             });
-            return ctx.Mats.Get("Crack_" + variant, () => MatKit.Make("Crack_" + variant, Color.white, 0.1f, 0f).WithAlbedo(tex, 1f, 1f).Cutout(0.45f));
+            return ctx.Mats.Get("Crack_" + variant, () => MatKit.Make("Crack_" + variant, Color.white, 0.1f, 0f).WithAlbedo(tex, 1f, 1f).Cutout(0.35f));
         }
 
         static void WalkBranch(float[] ink, int size, System.Random rng, double x, double y, double heading, float thickness, int steps, int depth)
@@ -187,7 +195,7 @@ namespace BasketballCourt.Modules
                 if (x < 0 || y < 0 || x >= size || y >= size) continue;
                 float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
                 float v = Mathf.Clamp01(1f - (d - radius + 1f));   // 1 inside, soft 1 px edge, halo beyond
-                float halo = Mathf.Clamp01(1f - (d - radius) / 3f) * 0.35f;
+                float halo = Mathf.Clamp01(1f - (d - radius) / 3f) * 0.6f;   // lighter chipped edge around the crack
                 int idx = y * size + x;
                 ink[idx] = Mathf.Max(ink[idx], Mathf.Max(v, halo));
             }
@@ -232,12 +240,12 @@ namespace BasketballCourt.Modules
         static void BuildPuddle(BuildContext ctx, Transform g)
         {
             // Same low spot the floor's detail map darkens (south-west), so the two agree.
-            Vector3 p = new Vector3(-6.8f, CourtSpec.DecalY, -11.5f);
-            Material damp = DirtMaterial(ctx, "DampRing", new Color(0.09f, 0.1f, 0.09f));
+            Vector3 p = new Vector3(-6.8f, DampY, -11.5f);
+            Material damp = DirtMaterial(ctx, "DampRing", new Color(0.14f, 0.15f, 0.14f));
             ctx.FloorQuad("DampRing", g, p, new Vector2(1.9f, 1.4f), 25f, damp);
             Material water = ctx.Mats.Get("PuddleWater", () =>
                 MatKit.Make("PuddleWater", new Color(0.1f, 0.12f, 0.12f, 0.62f), 0.96f, 0f).Fade());
-            Vector3 q = p; q.y = CourtSpec.DecalY + 0.0008f;
+            Vector3 q = p; q.y = WaterY;
             ctx.FloorQuad("Puddle", g, q, new Vector2(1.25f, 0.85f), 25f, water);
         }
 
@@ -245,7 +253,7 @@ namespace BasketballCourt.Modules
 
         static void BuildLeaves(BuildContext ctx, Transform g)
         {
-            Texture2D atlas = ctx.Tex.Get("leaf_atlas", () => LeafAtlas(ctx.RangeInt(1, 100000)));
+            Texture2D atlas = ctx.Tex.Get("leaf_atlas", () => ProceduralTextures.PreserveAlphaCoverage(LeafAtlas(ctx.RangeInt(1, 100000)), 0.5f));
             Material mat = ctx.Mats.Get("Leaves", () => MatKit.Make("Leaves", Color.white, 0.2f, 0f).WithAlbedo(atlas, 1f, 1f).Cutout(0.5f));
 
             var b = new MeshFactory.Builder();
@@ -329,7 +337,7 @@ namespace BasketballCourt.Modules
             };
             for (int i = 0; i < at.Length; i++)
             {
-                Vector3 p = at[i] + ctx.JitterXZ(0.05f); p.y = CourtSpec.DecalY;
+                Vector3 p = at[i] + ctx.JitterXZ(0.05f); p.y = RustY;
                 float s = ctx.Range(0.3f, 0.55f);
                 ctx.FloorQuad("Rust_" + i, g, p, new Vector2(s, s * ctx.Range(0.8f, 1.3f)), ctx.Range(0f, 360f), rust);
             }
@@ -370,8 +378,10 @@ namespace BasketballCourt.Modules
             // On the bench seats (seat top 0.45; seats run ±0.9 along Z at x ≈ 8.9..9.3).
             for (int i = 0; i < 4; i++)
             {
-                int bench = i % CourtSpec.BenchEastZ.Length;
-                Vector3 p = new Vector3(CourtSpec.BenchEastX + ctx.Range(-0.18f, 0.18f), 0.451f, CourtSpec.BenchEastZ[bench] + ctx.Range(-0.8f, 0.8f));
+                // Benches 1 and 2 only (bench 0 is missing a slat); 8 mm above the nominal seat so the
+                // slightly twisted slats never swallow the quad.
+                int bench = 1 + (i % 2);
+                Vector3 p = new Vector3(CourtSpec.BenchEastX + ctx.Range(-0.1f, 0.1f), 0.458f, CourtSpec.BenchEastZ[bench] + ctx.Range(-0.7f, 0.7f));
                 float s = ctx.Range(0.04f, 0.08f);
                 ctx.FloorQuad("Dropping_" + i, g, p, new Vector2(s, s * 0.8f), ctx.Range(0f, 360f), mat);
             }
